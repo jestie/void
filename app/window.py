@@ -309,7 +309,8 @@ class VoidWindow:
         w.set_default_size(W, H)
         w.set_size_request(W, H)
         w.set_keep_above(True)
-        w.set_type_hint(Gdk.WindowTypeHint.UTILITY)       # i3/sway(X) float utility windows by default
+        if "microsoft" not in os.uname().release.lower():   # WSLg parks utility windows off-screen at -32768
+            w.set_type_hint(Gdk.WindowTypeHint.UTILITY)   # i3/sway(X) float utility windows by default
         w.set_app_paintable(True)
         visual = w.get_screen().get_rgba_visual()
         if visual is not None and w.get_screen().is_composited():
