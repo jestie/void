@@ -815,17 +815,17 @@ const MOUTH={idle:{c:2.5,w:9},happy:{c:5,w:11},joy:{c:6,w:12,o:3},t_beam:{c:6,w:
   sad:{c:-3,w:9},t_sorry:{c:-2,w:8},error:{c:-3,w:9},annoyed:{c:-1,w:8},t_annoyed:{c:-1,w:8},angry:{c:-3.5,w:9,o:1.5},t_angry:{c:-3,w:9,o:1},
   bored:{c:0,w:7,k:-2},sleepy:{c:1,w:5},disgust:{wv:1,w:9},t_disgust:{wv:1,w:9},cool:{c:4,w:9,k:2.5},t_cool:{c:3.5,w:9,k:2},
   t_happy:{c:4.5,w:10},t_warm:{c:3.5,w:9},t_serious:{c:0,w:7},t_unsure:{c:.5,w:7,k:2},t_explain:{c:2,w:8},talking:{c:2,w:8},
-  scared:{r:1,w:5,o:3},confused:{c:0,w:7,k:3},listening:{c:2,w:7},pleading:{c:-1,w:6},purr:{c:5,w:10}};
+  scared:{r:1,w:5,o:3},dizzy:{wv:1,w:8,o:1},confused:{c:0,w:7,k:3},listening:{c:2,w:7},pleading:{c:-1,w:6},purr:{c:5,w:10}};
 const BLUSH={shy:.95,t_shy:.85,love:.8,t_love:.7,happy:.45,t_happy:.4,joy:.55,t_beam:.5,wink:.45,excited:.5,t_excited:.45,angry:.5,t_angry:.45,purr:.6,t_warm:.35};
 const MS={c:2.5,w:9,o:0,k:0,r:0,wv:0}; let blushA=0, shadesA=0, bangA=0, hopAt=-1e9;
 function drawJay(m,t,dt,P){
   if(!FACE.mouth){ E.mouth.setAttribute('d','M0 0Z'); E.blush.setAttribute('d','M0 0Z'); }
   else {
-    const M=MOUTH[m]||MOUTH.idle; for(const k in MS) MS[k]=approach(MS[k],M[k]||0,dt,12);
+    const M=dizzyK>.3?MOUTH.dizzy:MOUTH[m]||MOUTH.idle; for(const k in MS) MS[k]=approach(MS[k],M[k]||0,dt,12);
     const by=EYE.cy+EYE.ry*G.sz.x*.72+6, my=by+9, open=MS.o+(isTalk(m)?lvl*7:0);
     blushA=approach(blushA,(BLUSH[m]??.22)+flushBlush(),dt,5);
     E.blush.setAttribute('d',ellP(-(EYE.cx+9),by,10,4.6,P)+ellP(EYE.cx+9,by,10,4.6,P));
-    E.blush.setAttribute('opacity',clamp(blushA,0,1).toFixed(2));
+    E.blush.setAttribute('opacity',clamp(blushA*spinFront,0,1).toFixed(2));
     let d;
     if(MS.r>.5) d=ellP(0,my+1,MS.w*.6,open*.7+1.6,P);
     else { const up=[],lo=[];
@@ -1019,7 +1019,7 @@ const toD=pts=>'M'+pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L')+'Z'
    Time-based damped springs (smooth, no frame-rate dependence) + one-shot FX.
    He stays put: no bobbing or hopping — all the life is in the eyes, a gentle sway and a little squish. */
 const NS='http://www.w3.org/2000/svg';
-const E={}; ['cam','body','eL','eR','pL','pR','cpL','cpR','hlL','hlR','zz','qmark','shadow','rays','raysW','fx','fxBack','think','anger','sweat',
+const E={}; ['cam','body','face','eL','eR','pL','pR','cpL','cpR','hlL','hlR','zz','qmark','shadow','rays','raysW','fx','fxBack','think','anger','sweat',
   'halo','haloW','vring','workW','orbBack','orbFront','tears','bang','lash','mouth','blush','skL','skR','shades','shadeP','shadeG'].forEach(k=>E[k]=document.getElementById(k));
 const val=(v,i)=>Array.isArray(v)?v[i]:v;
 
@@ -1093,6 +1093,27 @@ function tear(side){ const g=mk('path',{d:'M0-6C3-1 4.5 2 4.5 4.2A4.5 4.5 0 0 1-
   parts.push(now=>{ const p=(now-t0)/1500; if(p>=1){ g.remove(); return false; }
     g.setAttribute('transform',`translate(${(x+Math.sin(p*5)*1.5).toFixed(1)},${(30+p*p*48).toFixed(1)}) scale(${(.5+Math.min(1,p*4)*.5).toFixed(2)})`);
     g.setAttribute('opacity',(p<.15?p/.15:p>.75?(1-p)/.25:1).toFixed(2)); return true; }); }
+/* spin: round and round like a ball on the floor (she turns about her up axis, so her face goes round the back),
+   kicking up dust, then a few seconds dizzy: spiral eyes, stars circling her head, a wobbly mouth */
+const SPIN_MS=2400, SPIN_TURNS=4, DIZZY_MS=3400;
+let spinAt=-1e9, spinYaw=0, spinFront=1, dizzyK=0, dustAt=0;
+function dust(v){ const g=mk('circle',{fill:'#cdbfa9'},Math.random()<.5?E.fxBack:E.fx), t0=performance.now(), dir=Math.random()<.5?-1:1;
+  const P={x:dir*(18+Math.random()*40),y:100+Math.random()*8,vx:dir*(50+Math.random()*110)*v,vy:-(8+Math.random()*34),r0:2.5+Math.random()*3,life:750+Math.random()*450};
+  parts.push((now,dt)=>{ const p=(now-t0)/P.life; if(p>=1){ g.remove(); return false; }
+    const dr=Math.exp(-2.4*dt); P.vx*=dr; P.vy*=dr; P.x+=P.vx*dt; P.y+=P.vy*dt;
+    g.setAttribute('cx',P.x.toFixed(1)); g.setAttribute('cy',P.y.toFixed(1)); g.setAttribute('r',(P.r0+eOut(p)*10).toFixed(1));
+    g.setAttribute('opacity',(.5*(p<.15?p/.15:1-(p-.15)/.85)).toFixed(2)); return true; }); }
+function dizzyStars(ms){ const t0=performance.now(), S=[];
+  for(let i=0;i<3;i++) S.push(mk('path',{d:'M0-6L1.8-1.9 6-1.9 2.6.8 3.8 5 0 2.5-3.8 5-2.6.8-6-1.9-1.8-1.9Z',fill:'#ffd23f'}));
+  parts.push(now=>{ const p=(now-t0)/ms; if(p>=1){ S.forEach(e=>e.remove()); return false; }
+    const fade=Math.min(1,p*6,(1-p)*4);
+    S.forEach((e,i)=>{ const a=now/1000*4.2+i*Math.PI*2/3, z=Math.sin(a), k=.65+.35*(z*.5+.5);
+      e.setAttribute('transform',`translate(${(Math.cos(a)*44).toFixed(1)},${(-92+z*9).toFixed(1)}) scale(${k.toFixed(2)}) rotate(${(now/6%360).toFixed(0)})`);
+      e.setAttribute('opacity',(fade*(.45+.55*(z*.5+.5))).toFixed(2)); }); return true; }); }
+window.voidSpin=spin;
+function spin(){ if(document.body.classList.contains('bar')) return;
+  const now=performance.now(); if(now-spinAt<SPIN_MS+DIZZY_MS) return;
+  spinAt=now; wake(); FID=null; setTimeout(()=>dizzyStars(DIZZY_MS*.9),SPIN_MS); }
 const flashEl=$('#flash');
 function notchPulse(col){ const p=$('#barPill'); if(col) p.style.setProperty('--pulse',col); p.classList.remove('pulse'); void p.offsetWidth; p.classList.add('pulse'); }
 function flash(col){ if(document.body.classList.contains('bar')) return notchPulse(col); flashEl.style.setProperty('--flash',col); flashEl.classList.remove('go'); void flashEl.offsetWidth; flashEl.classList.add('go'); }
@@ -1164,6 +1185,15 @@ function frame(ts){
     FID={name:n,t0:ts,dur:FIDGETS[n].dur}; lastFid=n; FIDGETS[n].start&&FIDGETS[n].start(FID); }
   let fx={};
   if(FID){ const p=(ts-FID.t0)/FID.dur; if(p>=1){ FID=null; nextFidAt=ts+4500+Math.random()*7000; } else fx=FIDGETS[FID.name].f(p,t,FID)||{}; }
+  { const sp=(ts-spinAt)/SPIN_MS, dz=(ts-spinAt-SPIN_MS)/DIZZY_MS; spinYaw=0; dizzyK=0;
+    if(sp>=0&&sp<1){ FID=null; const v=(1-Math.cos(2*Math.PI*sp))/2;            // speed: 0 → full → 0, ends facing you
+      spinYaw=SPIN_TURNS*2*Math.PI*(sp-Math.sin(2*Math.PI*sp)/(2*Math.PI));
+      fx={rot:Math.sin(spinYaw)*6*v, jt:sp<.1?.1*Math.sin(sp/.1*Math.PI):-.04*v, tx:0, ty:0};   // a crouch, then up; wobbles like a top
+      if(v>.25&&ts>dustAt&&!lowFx){ dust(v); dustAt=ts+40; } }
+    else if(dz>=0&&dz<1){ FID=null; dizzyK=1-bump(dz,.72,1);
+      fx={tx:Math.cos(t*7)*4*dizzyK, ty:Math.sin(t*7)*3*dizzyK, tilt:Math.sin(t*4.5)*10*dizzyK, rot:Math.sin(t*3.1)*3*dizzyK}; }
+    const c=Math.cos(spinYaw); spinFront=clamp((c-.05)/.3,0,1);
+    for(const e of [E.face,E.lash,E.mouth]) e.style.opacity=spinFront<1?spinFront.toFixed(2):''; }
   const fe=fx.eye||{};
   for(const key of EYE_KEYS){ S.L[key].to(val(T[key],0)+(fe[key]||0),dt); S.R[key].to(val(T[key],1)+(fe[key]||0),dt); }
   G.sz.to(T.sz,dt); G.tilt.to(T.tilt+(fx.tilt||0)+(isTalk(m)?talk.tiltT:0),dt);
@@ -1202,7 +1232,8 @@ function frame(ts){
 
   // ---- gaze: every mood has its own way of looking
   const dart=(ms,ax,ay)=>{ if(ts>dartAt){ tx=(Math.random()-.5)*ax; ty=(Math.random()-.5)*ay; dartAt=ts+ms*(.6+Math.random()*.8); } };
-  if(m==='thinking'){ tx=-3.5+Math.cos(t*.9)*2; ty=-4+Math.sin(t*1.4)*1.2; }
+  if(spinYaw||dizzyK){ tx=fx.tx||0; ty=fx.ty||0; }
+  else if(m==='thinking'){ tx=-3.5+Math.cos(t*.9)*2; ty=-4+Math.sin(t*1.4)*1.2; }
   else if(m==='reading'){ const ph=(t*1.1)%1; tx=-6+Math.min(1,ph*1.25)*12; ty=-2+((t*1.1|0)%4)*1.5; }      // left→right, line by line
   else if(m==='editing'){ tx=Math.sin(t*1.3)*2.5; ty=3; }
   else if(m==='running'){ tx=4+Math.sin(t*3)*.8; ty=4.5; }
@@ -1229,7 +1260,7 @@ function frame(ts){
   const open=G.open.to(opened?1:0,dt), openC=clamp(open,0,1), openPop=Math.max(1,open);
 
   // ---- eyes: the pupils do most of the looking (it's a little screen), the ball only turns a touch
-  const yaw=lx*.03, pitch=ly*.03, cY=Math.cos(yaw), sY=Math.sin(yaw), cP=Math.cos(pitch), sP=Math.sin(pitch);
+  const yaw=lx*.03+spinYaw, pitch=ly*.03, cY=Math.cos(yaw), sY=Math.sin(yaw), cP=Math.cos(pitch), sP=Math.sin(pitch);
   const P=(x,y)=>sph(x,y,cY,sY,cP,sP);
   const voice=1+(isTalk(m)?lvl*.05:0)+(m==='listening'?micLvl*.05:0);      // eyes swell a touch with the voice
   const PK=FACE.pk||1; let lashD='';
@@ -1249,8 +1280,14 @@ function frame(ts){
     const ax=Math.max(1,EYE.rx*z-pw-1.5), ay=Math.max(1,EYE.ry*z*sq-ph-1.5), k=Math.hypot(ux/ax,uy/ay);
     if(k>1){ ux/=k; uy/=k; } qx=ux*rc-uy*rs; qy=ux*rs+uy*rc;
     const hr=clamp(pc.hr.x,0,1), st=clamp(pc.st.x,0,1-hr), spin=st*t*1.1;          // star pupils slowly spin
+    if(dizzyK>.02){                     // dizzy: spiral eyes, turning opposite ways
+      const rr=EYE.rx*z*.8*Math.min(1,dizzyK*1.6), rot=-t*7*side, N=56, turns=2.6, bw=1.7*z, out=[], inn=[];
+      for(let i=0;i<=N;i++){ const q=i/N, a=rot+q*turns*2*Math.PI, r=q*rr, ca=Math.cos(a), sa=Math.sin(a);
+        out.push(P(cx+ca*(r+bw*q),cy+sa*(r+bw*q))); inn.push(P(cx+ca*Math.max(0,r-bw*q),cy+sa*Math.max(0,r-bw*q))); }
+      hl.setAttribute('d',toD(out.concat(inn.reverse()))); (side<0?E.skL:E.skR).setAttribute('d','M0 0Z');
+    } else {
     hl.setAttribute('d',toD(pupilPts(pw,ph,-side*pc.r.x+spin,hr,st).map(([x,y])=>P(cx+qx+x,cy+qy+y))));
-    (side<0?E.skL:E.skR).setAttribute('d',FACE.sparks&&shut<.6&&hr<.5&&st<.5?sparkPath(cx+qx,cy+qy,Math.min(pw,ph),FACE.sparks,P):'M0 0Z');
+    (side<0?E.skL:E.skR).setAttribute('d',FACE.sparks&&shut<.6&&hr<.5&&st<.5?sparkPath(cx+qx,cy+qy,Math.min(pw,ph),FACE.sparks,P):'M0 0Z'); }
   }
   E.lash.setAttribute('d',lashD||'M0 0Z');
   drawJay(m,t,dt,P);
@@ -1683,7 +1720,15 @@ const SCREEN_RE=/\b(my|the|this|on( the)?) screen\b|\bscreenshot\b|\bwhat am i l
 const WHOLE_RE=/\b(whole|entire|full) screen\b|\ball (my )?(screens|monitors)\b/i;   // otherwise just the window you're using
 // live view: he sees your screen only while you've told him to — a fresh picture rides along with each thing you say
 const TOUR_RE=/\b(?:show|do)\b.*\b(?:moods|faces|expressions|emotions|feelings)\b/i;
+const SPIN_RE=/^(?:(?:hey\s+)?(?:void|jay)[,\s]+)?(?:(?:can|could|will|would) you\s+)?(?:please\s+)?(?:do\s+(?:a\s+)?|give (?:me|us) a\s+)?(?:little\s+)?(?:spin|twirl)(?:\s+(?:round|around))*(?:\s+(?:and\s+)?(?:round|around))*(?:\s+for (?:me|us))?(?:\s+please)?[\s.!?]*$/i;
+const TRICKS_RE=/\b(?:show|do)\b.*\btricks?\b/i;
 const FACE_RE=/\b(?:switch|change|go|use)\b.*\b(doll|soft|almond|void)\b.*\bface\b/i;
+// a little show for the camera: her best bits, then a hello (record it with Snipping Tool / any screen recorder)
+function trickShow(){ const at=(ms,f)=>setTimeout(()=>{ wake(); f(); },ms);
+  at(0,()=>say('Hi! Want to see some tricks?'));
+  at(3800,()=>poke('excited',2600)); at(6600,()=>poke('love',3000)); at(9800,()=>poke('cool',3200));
+  at(13300,spin); at(19300,()=>poke('wink',1400));
+  at(21000,()=>{ poke('happy',2200); setTimeout(()=>say('Hello JanseVans!!!!'),900); }); }
 function moodTour(){ ['happy','attention','curious','shy','love','excited','cool','wink','joy','surprised','sad','bored','annoyed','angry','disgust','sleepy','idle']
   .forEach((m,i)=>setTimeout(()=>{ wake(); poke(m,3300); tick(m); },i*3400)); }
 const LIVE_ON=/^(?:hey\s+void[,\s]+)?(?:please\s+)?(?:(?:start|turn on|open)\s+)?(?:live view|live mode|watch(?:ing)? (?:my |the )?screen|keep an eye on (?:my |the )?screen|look live|see (?:my screen )?live)\b/i;
@@ -1771,6 +1816,8 @@ async function send(text,opts={}){
   if((mm=text.match(MEM_DEL))){ const r=await (await post('/api/memory',{op:'del',match:mm[1].replace(/[.!]+$/,'')})).json();
     info.memory_count=r.items.length; capShow(); setYou(text); say(r.removed?'Okay, forgotten.':"I couldn't find that in my notes — opening them so you can pick."); if(!r.removed) openPanel('memory'); return; }
   if(TOUR_RE.test(text)){ capShow(); setYou(text); moodTour(); return; }
+  if(TRICKS_RE.test(text)){ capShow(); setYou(text); trickShow(); return; }
+  if(SPIN_RE.test(text)){ capShow(); setYou(text); spin(); return; }
   { const fm=text.match(FACE_RE); if(fm){ const n=fm[1].toLowerCase(), F=FACES[n].look; capShow(); setYou(text);
       setLook({face:n,body:F[0],pupL:F[1],pupR:F[1],whiteL:F[2],whiteR:F[2]}); poke('excited',900); return; } }
   if(LIVE_ON.test(text)){ setLive(true); capShow(); setYou(text); say("Okay, I'm watching. Say “stop watching” when you're done."); poke('looking',1400); sfx('ok'); return; }
