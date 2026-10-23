@@ -1,0 +1,44 @@
+# Main guard: only the owner changes main and jay-face. A push (or force-push, or delete) by anyone else is put
+# straight back, and an issue says what was undone. Nothing is lost: the undone commits are named in the issue.
+# (Free private repos can't protect branches, so this is the stand-in. It stops accidents, not someone who edits it.)
+name: main guard
+on:
+  push:
+    branches: [main, jay-face]
+  delete:
+permissions:
+  contents: write
+  issues: write
+jobs:
+  guard:
+    if: github.actor != github.repository_owner && (github.event_name == 'push' || github.event.ref == 'main' || github.event.ref == 'jay-face')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Put the branch back
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          WHO: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.event_name == 'push' && github.ref_name || github.event.ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          set -eu
+          if [ "$EVENT" = delete ]; then
+            # a deleted branch: bring it back at the owner's last push to it
+            BEFORE="$(gh api "repos/$REPO/actions/workflows/main-guard.yml/runs?branch=$BRANCH&event=push&per_page=50" \
+              --jq "[.workflow_runs[] | select(.actor.login == \"$OWNER\")][0].head_sha // empty")"
+            [ -n "$BEFORE" ] || { echo "no known good commit for $BRANCH"; exit 1; }
+            gh api -X POST "repos/$REPO/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$BEFORE"
+            AFTER="(deleted)"
+          else
+            case "$BEFORE" in 0000000000000000000000000000000000000000) echo "new branch, nothing to put back"; exit 0;; esac
+            gh api -X PATCH "repos/$REPO/git/refs/heads/$BRANCH" -f sha="$BEFORE" -F force=true
+          fi
+          gh issue create -R "$REPO" --title "main guard: undid a change to $BRANCH by $WHO" --body "$(printf '%s\n' \
+            "**$WHO** changed \`$BRANCH\` and the guard put it back." "" \
+            "- back at: \`$BEFORE\`" "- their version: \`$AFTER\` (still on GitHub; nothing is lost)" "" \
+            "Want their change after all? Merge \`$AFTER\` yourself." "" \
+            "@$WHO: thanks! To suggest a change, push it to a branch of your own instead of \`$BRANCH\`.")"
