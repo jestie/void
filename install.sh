@@ -111,7 +111,9 @@ uv pip install --python "$ROOT/venv/bin/python" -U piper-tts \
 # Kokoro: his main voice — far more natural than piper, still all local. Small int8 model (~120 MB with the voices).
 # GitHub first; if that's blocked, kokoro_fetch.py builds the same files from Hugging Face.
 KDIR="$ROOT/voices/kokoro"
-if uv pip install --python "$ROOT/venv/bin/python" -U kokoro-onnx; then
+if curl -fsS -m 3 http://127.0.0.1:8880/v1/audio/voices >/dev/null 2>&1; then
+  say "Kokoro server already running on this machine  — using it, no download"
+elif uv pip install --python "$ROOT/venv/bin/python" -U kokoro-onnx; then
   say "Kokoro voice…"
   "$ROOT/venv/bin/python" "$APPD/kokoro_fetch.py" "$KDIR" \
     || { rm -f "$KDIR"/*.part; warn "Kokoro download failed — Void will use piper until it can fetch it"; }
