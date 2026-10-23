@@ -41,6 +41,8 @@ if WIN:
     for _s in (sys.stdout, sys.stderr):               # logs go to a file: write UTF-8, not the old Windows code page
         if _s is not None and hasattr(_s, "reconfigure"):
             _s.reconfigure(encoding="utf-8", errors="replace")
+import wsl  # noqa: E402
+WSL = not WIN and wsl.is_wsl()               # WSLg: mic choice and "on top" have to be done on the Windows side
 STATIC = APP_DIR / "static"
 try:                                            # written by the release build (and kept in git for git installs)
     VERSION = (APP_DIR / "VERSION").read_text(encoding="utf-8").strip() or "0.0.0"
@@ -171,6 +173,7 @@ DEFAULTS = {
     # when a long task finishes while he's hidden: desktop notification / pop back up
     "notify_done": True,
     "popup_done": False,
+    "keep_on_top": True,     # WSL: keep his window above your other windows (WSLg ignores the window's own hint)
     "code_panel": True,      # the floating code / terminal panel while he works
     "code_face": "him",      # which way the terminal faces: "him" (you see the back, mirrored) or "you" (readable)
     # hover mode: he floats next to your mouse cursor
@@ -1033,6 +1036,8 @@ class MicAuto:
 
 def mic_cmds():
     dev = (CFG.get("mic_device") or "").strip()
+    if dev.startswith("win:"):              # WSL: a Windows mic, made the Windows default → WSLg's RDPSource records it
+        dev = ""
     cmds = []
     if CFG.get("mic_cmd"):
         cmds.append(shlex.split(CFG["mic_cmd"]))
@@ -1213,6 +1218,8 @@ def reset_whisper():
 def list_mics():
     if WIN:
         return winsys.list_mics()
+    if WSL:                                 # WSLg only shows one input (the Windows default), so list Windows' own mics
+        return wsl.list_mics()
     if not shutil.which("pactl"):
         return []
     out = subprocess.run(["pactl", "-f", "json", "list", "sources"], capture_output=True, text=True).stdout
@@ -2757,7 +2764,7 @@ def state_info():
         "trust": trust(), "model": CFG["model"] or "default", "root": bool(CFG.get("root_mode")) and not WIN, "root_ok": not WIN,
 
         "wake_word": bool(CFG.get("wake_word")), "notify_done": bool(CFG.get("notify_done")),
-        "popup_done": bool(CFG.get("popup_done")), "hover": bool(CFG.get("hover")), "code_panel": CFG.get("code_panel", True) is not False, "live_minutes": int(CFG.get("live_minutes") or 10), "voice_native": Speaker.available(), "code_face": "you" if CFG.get("code_face") == "you" else "him",
+        "popup_done": bool(CFG.get("popup_done")), "keep_on_top": CFG.get("keep_on_top", True) is not False, "wsl": WSL, "hover": bool(CFG.get("hover")), "code_panel": CFG.get("code_panel", True) is not False, "live_minutes": int(CFG.get("live_minutes") or 10), "voice_native": Speaker.available(), "code_face": "you" if CFG.get("code_face") == "you" else "him",
         "click_through": bool(CFG.get("click_through")),
         "autostart": bool(CFG.get("autostart")), "listen_on_show": bool(CFG.get("listen_on_show")),
         "barge_in": bool(CFG.get("barge_in")), "sfx": bool(CFG.get("sfx")), "look": look(), "skins": SKINS,
@@ -2943,7 +2950,7 @@ class Handler(BaseHTTPRequestHandler):
                     AskPass.forget()
                 if "follow_up" in b:
                     upd["follow_up"] = max(0, min(60, int(b.get("follow_up") or 0)))
-                for key in ("wake_word", "notify_done", "popup_done", "code_panel", "hover", "click_through", "autostart", "listen_on_show",
+                for key in ("wake_word", "notify_done", "popup_done", "keep_on_top", "code_panel", "hover", "click_through", "autostart", "listen_on_show",
                             "barge_in", "sfx", "update_check"):
                     if key in b:
                         upd[key] = bool(b[key])
@@ -2970,6 +2977,10 @@ class Handler(BaseHTTPRequestHandler):
                     upd["quick_actions"] = qa
                 if upd:
                     save_config(**upd)
+                if WSL and str(upd.get("mic_device", "")).startswith("win:"):
+                    threading.Thread(target=wsl.set_mic, args=(upd["mic_device"],), daemon=True).start()
+                if WSL and "keep_on_top" in upd:
+                    wsl.OnTop.set(upd["keep_on_top"])
                 if "whisper_model" in upd:
                     reset_whisper()
                 if "autostart" in upd:
@@ -3334,6 +3345,10 @@ def main():
     if CFG["stt_prewarm"] or CFG.get("wake_word"):
         threading.Thread(target=lambda: _try(whisper), daemon=True).start()
     _wire_quick()
+    if WSL:
+        if str(CFG.get("mic_device") or "").startswith("win:"):
+            threading.Thread(target=wsl.set_mic, args=(CFG["mic_device"],), daemon=True).start()
+        wsl.OnTop.set(CFG.get("keep_on_top", True) is not False)
     threading.Thread(target=warm_tts, daemon=True).start()
     Wake.ensure()
     Updates.start()
