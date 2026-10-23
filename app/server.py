@@ -212,6 +212,9 @@ def load_config():
 
 CFG = load_config()
 
+# faces he/she can have: name → (body, pupil, eye white). Jay's default is the doll.
+FACE_LOOKS = {"doll": ("#121a38", "#5d9cff", "#ffffff"), "void": ("#0b0b0b", "#3d9b74", "#f3dccf"),
+              "soft": ("#24142c", "#a46ad6", "#fdebf1"), "almond": ("#181822", "#d7896b", "#f6ece6")}
 SKINS = ["none", "cat", "bunny", "bear", "antenna", "devil", "halo", "crown", "sprout", "party", "headphones", "bow"]
 HEX = re.compile(r"#[0-9a-f]{6}")
 
@@ -219,9 +222,11 @@ HEX = re.compile(r"#[0-9a-f]{6}")
 def look():
     lk = dict(CFG.get("look") or {})
     ec, ew = (CFG.get("eye_color") or "#3d9b74").lower(), (CFG.get("eye_white") or "#f3dccf").lower()
-    pup = ec if HEX.fullmatch(ec) else "#3d9b74"
-    wht = ew if HEX.fullmatch(ew) else "#f3dccf"
-    out = {"body": "#0b0b0b", "pupL": pup, "pupR": pup, "whiteL": wht, "whiteR": wht, "skin": "none",
+    face = lk.get("face") if lk.get("face") in FACE_LOOKS else "doll"
+    fb, fp, fw = FACE_LOOKS[face]
+    pup = ec if HEX.fullmatch(ec) and ec != "#3d9b74" else fp       # the old eye-colour settings still win if changed
+    wht = ew if HEX.fullmatch(ew) and ew != "#f3dccf" else fw
+    out = {"face": face, "body": fb, "pupL": pup, "pupR": pup, "whiteL": wht, "whiteR": wht, "skin": "none",
            "skinColor": "", "link": True, "random": ec == "random" or ew == "random"}
     for k, v in lk.items():
         if k in ("body", "pupL", "pupR", "whiteL", "whiteR", "skinColor") and isinstance(v, str) and (HEX.fullmatch(v.lower()) or (k == "skinColor" and v == "")):

@@ -130,6 +130,8 @@ body.bar #code .l.out{color:#b5b5b5}
 .b0{stop-color:var(--body0,#191919)} .b1{stop-color:var(--body1,#0a0a0a)} .b2{stop-color:var(--body2,#020202)} .b0,.b1,.b2{transition:stop-color .6s}
 #rim{stroke:var(--rim,#262626)}
 #hlL{fill:var(--pupL)} #hlR{fill:var(--pupR)} .slit{transition:fill .6s}
+.spk{fill:#fff;opacity:.92} #lash,#mouth{fill:var(--whiteL)} #blush{fill:var(--blush,transparent)} #shadeP{fill:#0a0c15} #shadeG{fill:#fff;opacity:.3}
+body.bar #mouth,body.bar #blush,body.bar #shades,body.snap #mouth,body.snap #blush,body.snap #shades{display:none}
 .hs{stop-color:var(--glow);transition:stop-color .8s}
 .orb line{stroke:var(--hot);stroke-linecap:round}
 #vring{fill:none;stroke:var(--hot);stroke-width:1.6;stroke-linejoin:round}
@@ -464,18 +466,21 @@ body.term #chip.work{opacity:0}          /* the terminal already says what he's 
       <g id="workW" opacity="0" filter="url(#glow)"><circle id="workTail" r="96"/><circle id="workHead" r="96"/></g>
       <g id="zz" opacity="0"><text class="zz" x="66" y="-66">z</text><text class="zz" x="82" y="-88" font-size="20">z</text></g>
       <g id="qmark" opacity="0"><text class="qm" x="70" y="-70">?</text></g>
+      <g id="bang" opacity="0"><text class="qm" x="72" y="-72">!</text></g>
       <g id="body">
         <g id="accBack"></g>
         <circle r="76" fill="url(#ballG)"/>
         <g id="face">
-          <g id="eL"><path class="eye" id="pL"/><g clip-path="url(#clipL)"><path class="slit" id="hlL"/></g></g>
-          <g id="eR"><path class="eye" id="pR"/><g clip-path="url(#clipR)"><path class="slit" id="hlR"/></g></g>
+          <g id="eL"><path class="eye" id="pL"/><g clip-path="url(#clipL)"><path class="slit" id="hlL"/><path class="spk" id="skL"/></g></g>
+          <g id="eR"><path class="eye" id="pR"/><g clip-path="url(#clipR)"><path class="slit" id="hlR"/><path class="spk" id="skR"/></g></g>
         </g>
+        <path id="blush" opacity="0"/><path id="lash"/><path id="mouth"/>
         <g id="tears"></g>
         <!-- the glass dome: soft reflection + rim -->
         <ellipse cx="-30" cy="-46" rx="38" ry="15" transform="rotate(-30 -30 -46)" fill="url(#glossG)" pointer-events="none"/>
         <ellipse cx="34" cy="50" rx="18" ry="6" transform="rotate(-40 34 50)" fill="url(#glossG)" opacity=".45" pointer-events="none"/>
         <circle id="rim" r="75" fill="none" stroke-width="1.6" pointer-events="none"/>
+        <g id="shades" opacity="0" pointer-events="none"><path id="shadeP"/><path id="shadeG"/></g>
         <g id="accFront"></g>
         <g id="liveTag" transform="translate(50 58) rotate(-14)" display="none"><rect x="-21" y="-8.5" width="42" height="17" rx="6" fill="#2f8f66" stroke="#7fd6ae" stroke-width="1"/><circle id="liveDot" cx="-12" cy="0" r="2.6" fill="#fff"/><text x="4" y="3.6" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="monospace" letter-spacing="1">LIVE</text></g>
         <g id="think" opacity="0"><circle class="thk" cx="64" cy="-70" r="4"/><circle class="thk" cx="79" cy="-86" r="6"/><circle class="thk" cx="99" cy="-106" r="9"/></g>
@@ -636,7 +641,7 @@ try{ muted=localStorage.getItem('void.muted')==='1'; }catch(e){}
 
 /* ================= his look: body colour, each pupil, each eye white, a skin =================
    Everything is a CSS variable, so changes glide in. UI accents (glow, sparks, menus) follow the left pupil. */
-const LOOK_DEFAULT={body:'#0b0b0b',pupL:'#3d9b74',pupR:'#3d9b74',whiteL:'#f3dccf',whiteR:'#f3dccf',skin:'none',skinColor:'',link:true,random:false};
+const LOOK_DEFAULT={face:'doll',body:'#121a38',pupL:'#5d9cff',pupR:'#5d9cff',whiteL:'#ffffff',whiteR:'#ffffff',skin:'none',skinColor:'',link:true,random:false};
 let LOOK={...LOOK_DEFAULT};
 const EC={eye:LOOK.pupL,acc:LOOK.pupL,hot:'#7fd6ae',sclera:LOOK.whiteL};
 const hex2rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
@@ -660,6 +665,7 @@ function applyAccent(hex){
 }
 function applyLook(L){
   LOOK={...LOOK_DEFAULT,...L};
+  setFace(LOOK.face);
   const st=document.documentElement.style, [b0,b1,b2]=bodyStops(LOOK.body);
   st.setProperty('--pupL',LOOK.pupL); st.setProperty('--pupR',LOOK.pupR);
   st.setProperty('--whiteL',LOOK.whiteL); st.setProperty('--whiteR',LOOK.whiteR);
@@ -756,7 +762,105 @@ function miniVoid(svg,L,clickable){
    sagged by `tc`; bot – lower lid from the bottom, `bow` arches it. sq squashes the oval, es scales one eye.
    Asleep (`shut`) an oval melts into a thin "‿" arc (per eye, so he can wink).  */
 const EYE={rx:23.5, ry:40.5, cx:27.5, cy:-4.5, tilt:0.157};
-const EYE_HALFW=Math.hypot(EYE.rx*Math.cos(EYE.tilt),EYE.ry*Math.sin(EYE.tilt));   // half the width of one leaning eye
+let EYE_HALFW=Math.hypot(EYE.rx*Math.cos(EYE.tilt),EYE.ry*Math.sin(EYE.tilt));
+/* ---------------- Jay: faces beyond Void's own. Same eye maths and springs; these add lashes, sparkly pupils
+   (pk = pupil size), blush and a small mouth that opens with the voice. look = [body, pupil, eye white]. */
+const FACES={
+  void:  {eye:{rx:23.5,ry:40.5,cx:27.5,cy:-4.5,tilt:.157}, look:['#0b0b0b','#3d9b74','#f3dccf']},
+  doll:  {eye:{rx:27,ry:35,cx:30,cy:0,tilt:.05}, look:['#121a38','#5d9cff','#ffffff'], pk:1.45, lashes:[1.6,1.7,1.8,1.9], lashLen:11, sparks:3, blush:'#ff86b0', mouth:true},
+  soft:  {eye:{rx:25,ry:31,cx:29,cy:-4,tilt:.06}, look:['#24142c','#a46ad6','#fdebf1'], pk:1.35, lashes:[1.68,1.79,1.9], lashLen:9, sparks:2, blush:'#ff8fb1', mouth:true},
+  almond:{eye:{rx:27,ry:22,cx:30,cy:-6,tilt:.2}, look:['#181822','#d7896b','#f6ece6'], pk:1.25, lashes:[1.8,1.9], lashLen:8, wing:true, sparks:1, blush:'#e88a7a', mouth:true},
+};
+let FACE=FACES.void;
+function setFace(name){
+  FACE=FACES[name]||FACES.void; Object.assign(EYE,FACE.eye);
+  EYE_HALFW=Math.hypot(EYE.rx*Math.cos(EYE.tilt),EYE.ry*Math.sin(EYE.tilt));
+  document.documentElement.style.setProperty('--blush',FACE.blush||'transparent');
+  const sp=document.getElementById('shadeP'), sg=document.getElementById('shadeG');
+  if(sp) sp.setAttribute('d',shadesPath());
+  if(sg) sg.setAttribute('d',`M${-EYE.cx-14} ${EYE.cy-16}h9l-12 34h-9ZM${EYE.cx-14} ${EYE.cy-16}h7l-12 34h-7Z`);
+}
+const f1=v=>v.toFixed(1);
+function ellP(x,y,rx,ry,P){ const o=[]; for(let i=0;i<20;i++){ const a=i/20*Math.PI*2; o.push(P(x+Math.cos(a)*rx,y+Math.sin(a)*ry)); } return toD(o); }
+function sparkPath(px,py,r,n,P){ let s=ellP(px-r*.35,py-r*.4,r*.28,r*.28,P);
+  if(n>1) s+=ellP(px+r*.32,py+r*.28,r*.13,r*.13,P); if(n>2) s+=ellP(px-r*.05,py+r*.5,r*.09,r*.09,P); return s; }
+// lashes on the upper lid's outer side, as thin tapered shapes; they ride the lids (and point down when the eye shuts)
+function lashPath(loc,side,z,shut,cx,cy,P){
+  const N=loc.length, L=FACE.lashes; let s='';
+  L.forEach((a0,j)=>{ const a=side>0?a0*Math.PI:(3*Math.PI-a0*Math.PI)%(2*Math.PI);
+    const [lx,ly]=loc[Math.round(a/(2*Math.PI)*N)%N], n=Math.hypot(lx,ly)||1, th=side*.35, nx=lx/n, ny=ly/n;
+    const dx=nx*Math.cos(th)-ny*Math.sin(th), dy=nx*Math.sin(th)+ny*Math.cos(th);
+    const len=FACE.lashLen*z*(.65+.35*(L.length>1?j/(L.length-1):1)), w=1.4*z, q=[lx+dx*len*.55-dy*side*1.6, ly+dy*len*.55+dx*side*1.6];
+    const p=[[lx-dy*w,ly+dx*w],q,[lx+dx*len,ly+dy*len],[lx+dy*w,ly-dx*w]].map(([x,y])=>P(cx+x,cy+y));
+    s+=`M${f1(p[0][0])} ${f1(p[0][1])}Q${f1(p[1][0])} ${f1(p[1][1])} ${f1(p[2][0])} ${f1(p[2][1])}Q${f1(p[1][0])} ${f1(p[1][1])} ${f1(p[3][0])} ${f1(p[3][1])}Z`; });
+  if(FACE.wing&&shut<.5){ const O=loc[side>0?0:N/2], U=loc[Math.round((side>0?1.88:1.12)/2*N)%N];
+    s+=toD([[U[0],U[1]],[O[0]+side*9*z,O[1]-7*z],[O[0],O[1]]].map(([x,y])=>P(cx+x,cy+y))); }
+  return s;
+}
+// a curve as a filled band (no strokes), for the sunglasses' bridge and arms
+function band(pts,w){ const A=[],B=[];
+  pts.forEach((p,i)=>{ const a=pts[Math.max(0,i-1)], b=pts[Math.min(pts.length-1,i+1)], dx=b[0]-a[0], dy=b[1]-a[1], n=Math.hypot(dx,dy)||1;
+    A.push([p[0]-dy/n*w,p[1]+dx/n*w]); B.push([p[0]+dy/n*w,p[1]-dx/n*w]); });
+  return toD(A.concat(B.reverse())); }
+function shadesPath(){ const rx=EYE.rx+4, ry=EYE.ry*.85+2, cy=EYE.cy+2;
+  const lens=sd=>{ const p=[]; for(let k=0;k<40;k++){ const a=k/40*Math.PI*2, c=Math.cos(a), s=Math.sin(a);
+    p.push([sd*(EYE.cx+1)+rx*Math.sign(c)*Math.pow(Math.abs(c),.6), cy+ry*Math.sign(s)*Math.pow(Math.abs(s),.7)+(s>0?4*s*(.5+.5*sd*c):0)]); } return toD(p); };
+  return lens(-1)+lens(1)+band([[-8,cy-ry*.3],[0,cy-ry*.38],[8,cy-ry*.3]],2.6)+band([[-62,cy-ry*.2],[-74,cy-ry*.32]],2.2)+band([[62,cy-ry*.2],[74,cy-ry*.32]],2.2); }
+
+// mouth shape per mood: c = smile (negative: frown), w = half width, o = open, k = lopsided, r = round "o", wv = wobbly
+const MOUTH={idle:{c:2.5,w:9},happy:{c:5,w:11},joy:{c:6,w:12,o:3},t_beam:{c:6,w:12,o:2},excited:{c:4,w:9,o:4},t_excited:{c:4,w:9,o:2},
+  love:{c:5,w:10},t_love:{c:4,w:9},wink:{c:4.5,w:10,k:1.5},shy:{c:2,w:6},t_shy:{c:2,w:6},curious:{c:2,w:7,k:3},t_curious:{c:1.5,w:7,k:2},
+  thinking:{c:.5,w:6,k:-3},t_think:{c:.5,w:6,k:-2},surprised:{r:1,w:5,o:5},t_surprised:{r:1,w:5,o:4},attention:{r:1,w:4,o:3},
+  sad:{c:-3,w:9},t_sorry:{c:-2,w:8},error:{c:-3,w:9},annoyed:{c:-1,w:8},t_annoyed:{c:-1,w:8},angry:{c:-3.5,w:9,o:1.5},t_angry:{c:-3,w:9,o:1},
+  bored:{c:0,w:7,k:-2},sleepy:{c:1,w:5},disgust:{wv:1,w:9},t_disgust:{wv:1,w:9},cool:{c:4,w:9,k:2.5},t_cool:{c:3.5,w:9,k:2},
+  t_happy:{c:4.5,w:10},t_warm:{c:3.5,w:9},t_serious:{c:0,w:7},t_unsure:{c:.5,w:7,k:2},t_explain:{c:2,w:8},talking:{c:2,w:8},
+  scared:{r:1,w:5,o:3},confused:{c:0,w:7,k:3},listening:{c:2,w:7},pleading:{c:-1,w:6},purr:{c:5,w:10}};
+const BLUSH={shy:.95,t_shy:.85,love:.8,t_love:.7,happy:.45,t_happy:.4,joy:.55,t_beam:.5,wink:.45,excited:.5,t_excited:.45,angry:.5,t_angry:.45,purr:.6,t_warm:.35};
+const MS={c:2.5,w:9,o:0,k:0,r:0,wv:0}; let blushA=0, shadesA=0, bangA=0, hopAt=-1e9;
+function drawJay(m,t,dt,P){
+  if(!FACE.mouth){ E.mouth.setAttribute('d','M0 0Z'); E.blush.setAttribute('d','M0 0Z'); }
+  else {
+    const M=MOUTH[m]||MOUTH.idle; for(const k in MS) MS[k]=approach(MS[k],M[k]||0,dt,12);
+    const by=EYE.cy+EYE.ry*G.sz.x*.72+6, my=by+9, open=MS.o+(isTalk(m)?lvl*7:0);
+    blushA=approach(blushA,(BLUSH[m]??.22)+flushBlush(),dt,5);
+    E.blush.setAttribute('d',ellP(-(EYE.cx+9),by,10,4.6,P)+ellP(EYE.cx+9,by,10,4.6,P));
+    E.blush.setAttribute('opacity',clamp(blushA,0,1).toFixed(2));
+    let d;
+    if(MS.r>.5) d=ellP(0,my+1,MS.w*.6,open*.7+1.6,P);
+    else { const up=[],lo=[];
+      for(let i=0;i<=20;i++){ const q=i/10-1, f=1-q*q, y=my+MS.c*f*.55+MS.k*q*.4+MS.wv*2.2*Math.sin(q*Math.PI*2.5+t*3)*f;
+        up.push(P(q*MS.w,y)); lo.push(P(q*MS.w,y+(1.5+open)*Math.max(f,MS.wv*Math.pow(Math.max(f,0),.3)))); }
+      d=toD(up.concat(lo.reverse())); }
+    E.mouth.setAttribute('d',d);
+  }
+  shadesA=approach(shadesA,m==='cool'||m==='t_cool'?1:0,dt,7);
+  E.shades.setAttribute('opacity',clamp(shadesA*1.4,0,1).toFixed(2));
+  E.shades.setAttribute('transform',`translate(0,${f1(-80*(1-shadesA))})`);
+  E.shadeG.setAttribute('transform',`translate(${f1(10*Math.sin(t*1.3))},0)`);
+}
+
+/* ---------------- colour flushes: a feeling shows in her colour for ~5 s (body, rim, and the accent the shield,
+   glow and sparks follow), then fades back over 1.5 s */
+const FLUSH={shy:['#ff5a7a',.18],t_shy:['#ff5a7a',.15],love:['#ff3b5c',.6],t_love:['#ff3b5c',.45],annoyed:['#e8452c',.5],t_annoyed:['#e8452c',.4],
+  angry:['#a3001a',.9],t_angry:['#a3001a',.75],excited:['#ff9a2e',.75],t_excited:['#ff9a2e',.5],attention:['#ffd23f',.45],
+  disgust:['#5fbf3a',.7],t_disgust:['#5fbf3a',.6],cool:['#38e1ff',.4],t_cool:['#38e1ff',.35],bored:['#8a8f9c',.5],
+  happy:['#7fc4ff',.35],joy:['#7fc4ff',.45],t_beam:['#7fc4ff',.35]};
+const mixHex=(a,b,k)=>{ const A=hex2rgb(a), B=hex2rgb(b); return rgb2hex(A.map((v,i)=>lerp(v,B[i],k))); };
+let fl={c:null,k:0,at:-1e9,m:'',last:-1,env:0};
+function flush(m){ const f=FLUSH[m]; if(!f) return; fl={c:f[0],k:f[1],at:performance.now(),m,last:-1,env:0}; }
+function flushTick(ts){
+  if(!fl.c) return;
+  const s=(ts-fl.at)/1000, sm=x=>{ x=clamp(x,0,1); return x*x*(3-2*x); };
+  const env=s<.6?sm(s/.6):s<5.2?1:1-sm((s-5.2)/1.5), k=fl.k*env; fl.env=env;
+  if(s>6.7){ fl.c=null; fl.env=0; applyLook(LOOK); return; }       // (s can start a hair below 0: frame time vs now)
+  if(Math.abs(k-fl.last)<.006) return; fl.last=k;
+  const st=document.documentElement.style, [b0,b1,b2]=bodyStops(mixHex(LOOK.body,fl.c,k*.75));
+  st.setProperty('--body0',b0); st.setProperty('--body1',b1); st.setProperty('--body2',b2);
+  st.setProperty('--rim',mixHex(lum(LOOK.body)<.12?'#262626':shade(LOOK.body,-.12),fl.c,Math.min(1,k*1.1)));
+  applyAccent(mixHex(LOOK.pupL,fl.c,k*.85));
+}
+const flushBlush=()=>fl.c&&/shy|love|angry/.test(fl.m)?.4*fl.env:0;
+window.jayMood=(m,ms)=>{ wake(); poke(m,ms||4000); };   // half the width of one leaning eye
 /* pupils morph smoothly between shapes — all flat, solid colour:
      slit · circle · dot · big (huge circles) · small · heart · star
    w/h = half-size, r = lean (mirrored per eye), dx = toward the nose, dy = down, hr = heart-ness, st = star-ness */
@@ -816,6 +920,17 @@ const MOODS={
   bored:     {top:.44, sq:.94, tilt:5, pu:'small'},                     // half-lidded, glancing away
   shy:       {bot:.34, bow:.45, es:[1,.97], tilt:-8, pu:'circle'},       // bashful, looking down
   purr:      {shut:1, cup:1, sz:1.03, tilt:-6, pu:'circle'},             // being petted: "^ ^"
+  // Jay's extra feelings
+  angry:     {top:.4, sl:.55, sq:.9, sz:.96, pu:'small'},                 // V brows, narrowed, a shake (see onMood)
+  attention: {sz:1.1, es:1.1, pu:'dot'},                                  // eyes wide, hopping on the spot
+  disgust:   {top:[.3,.15], sl:[.25,-.05], bot:.3, sq:.85, tilt:6, pu:'small'},  // "ugh": squished, queasy sway
+  cool:      {bot:.2, sq:.85, tilt:-4, pu:'circle'},                      // sunglasses on, a smirk
+  t_annoyed: {top:.45, sl:.05, sq:.9, pu:'small'},
+  t_angry:   {top:.36, sl:.5, sq:.92, pu:'small'},
+  t_shy:     {bot:.3, bow:.4, tilt:-6, pu:'circle'},
+  t_love:    {bot:.24, bow:.35, sz:1.03, pu:'heart'},
+  t_cool:    {bot:.16, sq:.88, pu:'circle'},
+  t_disgust: {top:[.26,.12], sl:[.2,-.05], bot:.26, sq:.88, pu:'small'},
 };
 
 const EYE_KEYS=['top','sl','tc','bot','bow','sq','shut','es','cup'];
@@ -836,6 +951,9 @@ const AURA={
   joy:{spd:2.2,rad:1.12,a:1,h:.95}, sad:{spd:.25,rad:.95,a:.35,h:.3}, scared:{spd:3.4,rad:.92,a:.9,h:.6},
   bored:{spd:.3,rad:1,a:.35,h:.3}, shy:{spd:.7,rad:1.04,a:.7,h:.7},
   purr:{spd:.9,rad:1.06,a:.85,h:.85},
+  angry:{spd:2.8,rad:.98,a:1,h:1}, attention:{spd:2.4,rad:1.1,a:1,h:.95}, disgust:{spd:.6,rad:1,a:.5,h:.5}, cool:{spd:.8,rad:1.04,a:.8,h:.7},
+  t_annoyed:{spd:1.4,rad:1,a:.8,h:.75}, t_angry:{spd:2.4,rad:.98,a:1,h:.95}, t_shy:{spd:.7,rad:1.04,a:.7,h:.7},
+  t_love:{spd:1.1,rad:1.06,a:.9,h:.85}, t_cool:{spd:.8,rad:1.03,a:.8,h:.65}, t_disgust:{spd:.6,rad:1,a:.55,h:.5},
 };
 const TOOL_MOOD={Read:'reading',Glob:'reading',Grep:'reading',LS:'reading',NotebookRead:'reading',
   Edit:'editing',Write:'editing',MultiEdit:'editing',NotebookEdit:'editing',
@@ -852,6 +970,7 @@ function mood(now){
   if(playing) return now<talk.beamUntil?'t_beam':(talk.face||'talking');
   if(busy) return toolMood||'thinking';
   if(now-lastActive>(nightTime()?30000:75000)) return 'sleepy';
+  if(now-lastActive>20000) return 'bored';
   return 'idle';
 }
 function poke(m,ms){ transient=m; transientUntil=performance.now()+ms; lastActive=performance.now(); }
@@ -900,7 +1019,7 @@ const toD=pts=>'M'+pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L')+'Z'
    He stays put: no bobbing or hopping — all the life is in the eyes, a gentle sway and a little squish. */
 const NS='http://www.w3.org/2000/svg';
 const E={}; ['cam','body','eL','eR','pL','pR','cpL','cpR','hlL','hlR','zz','qmark','shadow','rays','raysW','fx','fxBack','think','anger','sweat',
-  'halo','haloW','vring','workW','orbBack','orbFront','tears'].forEach(k=>E[k]=document.getElementById(k));
+  'halo','haloW','vring','workW','orbBack','orbFront','tears','bang','lash','mouth','blush','skL','skR','shades','shadeP','shadeG'].forEach(k=>E[k]=document.getElementById(k));
 const val=(v,i)=>Array.isArray(v)?v[i]:v;
 
 class Spring{   // f = natural frequency (Hz), z = damping ratio (1 = no overshoot)
@@ -979,7 +1098,10 @@ function flash(col){ if(document.body.classList.contains('bar')) return notchPul
 
 function onMood(m){
   document.body.classList.forEach(c=>{ if(c.startsWith('m-')) document.body.classList.remove(c); }); document.body.classList.add('m-'+m);
+  flush(m);
   if(!opened) return;
+  if(m==='t_angry') shakeAmp=1.6;
+  if(m==='t_love') hearts(3);
   if(isTalk(m)){ for(const e of [S.L,S.R]) e.es.kick(m==='t_excited'?.7:.35); if(m==='t_excited'||m==='t_beam') popPupils(); if(m==='t_beam') G.jelly.kick(.25); return; }
   G.sz.kick(.12); G.jelly.kick(.15); popPupils(); G.earL.kick((Math.random()-.5)*80); G.earR.kick((Math.random()-.5)*80);
   for(const e of [S.L,S.R]){ e.sq.kick(-1.1); e.es.kick(.8); }          // eyes "pop" with every new feeling
@@ -992,6 +1114,10 @@ function onMood(m){
   else if(m==='confused'){ G.tilt.kick(18); }
   else if(m==='joy'){ burstLines(EC.hot,10); shock(EC.acc,true); G.jelly.kick(.8); setTimeout(()=>confetti(12),100); }
   else if(m==='sad'){ G.jelly.kick(-.4); G.tilt.kick(-8); }
+  else if(m==='angry'){ shakeAmp=3.2; shock('#ff1a1a'); flash('#ff0000'); G.jelly.kick(1.3); }
+  else if(m==='attention'){ hopAt=performance.now(); G.zoom.kick(.3); burstLines('#ffd23f',8,90); }
+  else if(m==='disgust'){ G.jelly.kick(-.5); G.tilt.kick(10); }
+  else if(m==='cool'){ G.jelly.kick(.3); G.tilt.kick(-6); }
   else if(m==='scared'){ shakeAmp=1.4; G.jelly.kick(-.9); G.zoom.kick(-.2); }
   else if(m==='shy'){ G.tilt.kick(-12); }
   else if(m==='listening'){ shock(EC.hot); G.sz.kick(.5); }
@@ -1060,11 +1186,12 @@ function frame(ts){
   const sq=G.jelly.to(jt,dt), sx=1+sq, sy=1-sq*1.05;
   const pump=1+micLvl*.04+Math.sin(t*1.3)*.004;
   lift=0;
-  const rot=G.tilt.x+Math.sin(t*.5)*.5+G.gx.v*.012+(fx.rot||0);
+  const rot=G.tilt.x+Math.sin(t*.5)*.5+G.gx.v*.012+(fx.rot||0)+(m==='disgust'||m==='t_disgust'?Math.sin(t*2.4)*4:0);
+  const hop=m==='attention'?Math.abs(Math.sin(t*7))*11*((ts-hopAt)<2400?1:.35):0;
   const dxp=G.dx.to(0,dt);
-  const bodyTr=`translate(${dxp.toFixed(2)},${(76*(1-sy*pump)).toFixed(2)}) rotate(${rot.toFixed(2)})`;
+  const bodyTr=`translate(${dxp.toFixed(2)},${(76*(1-sy*pump)-hop).toFixed(2)}) rotate(${rot.toFixed(2)})`;
   E.body.setAttribute('transform',`${bodyTr} scale(${(sx*pump).toFixed(4)},${(sy*pump).toFixed(4)})`);
-  E.shadow.setAttribute('transform',`scale(${sx.toFixed(3)},1)`);
+  E.shadow.setAttribute('transform',`scale(${(sx*(1-hop/30)).toFixed(3)},1)`);
 
   // ---- camera: appear pop, punch-zoom, soft shake (side to side)
   const ap=G.appear.to(1,dt), zm=G.zoom.to(1,dt); shakeAmp*=Math.exp(-5*dt);
@@ -1104,14 +1231,17 @@ function frame(ts){
   const yaw=lx*.03, pitch=ly*.03, cY=Math.cos(yaw), sY=Math.sin(yaw), cP=Math.cos(pitch), sP=Math.sin(pitch);
   const P=(x,y)=>sph(x,y,cY,sY,cP,sP);
   const voice=1+(isTalk(m)?lvl*.05:0)+(m==='listening'?micLvl*.05:0);      // eyes swell a touch with the voice
+  const PK=FACE.pk||1; let lashD='';
   for(const [side,c,pc,p,cp,hl] of [[-1,S.L,SP.L,E.pL,E.cpL,E.hlL],[1,S.R,SP.R,E.pR,E.cpR,E.hlR]]){
     const top=c.top.x+(1-c.top.x)*Math.max(blink*.97,1-openC), z=G.sz.x*openPop*c.es.x*voice;
     const cx=side*Math.max(EYE.cx,EYE_HALFW*z+2.6), cy=EYE.cy;      // bigger eyes move apart: always a gap, never merged
     const sq=c.sq.x, shut=clamp(c.shut.x,0,1);
-    const d=toD(eyePts(z,{top,sl:c.sl.x,tc:c.tc.x,bot:c.bot.x,bow:c.bow.x,sq,shut,cup:clamp(c.cup.x,0,1)},side).map(([x,y])=>P(cx+x,cy+y)));
+    const loc=eyePts(z,{top,sl:c.sl.x,tc:c.tc.x,bot:c.bot.x,bow:c.bow.x,sq,shut,cup:clamp(c.cup.x,0,1)},side);
+    const d=toD(loc.map(([x,y])=>P(cx+x,cy+y)));
     p.setAttribute('d',d); cp.setAttribute('d',d);
+    if(FACE.lashes) lashD+=lashPath(loc,side,z,shut,cx,cy,P);
     const dil=1+(m==='listening'?micLvl*.12:0)+(isTalk(m)?lvl*.08:0)+(m==='love'?Math.sin(t*7)*.06:0);
-    const pw=Math.max(.3,pc.w.x*dil*z*(1-shut)), ph=Math.max(.3,pc.h.x*dil*z*(1-shut));
+    const pw=Math.max(.3,pc.w.x*dil*z*(1-shut)*PK), ph=Math.max(.3,pc.h.x*dil*z*(1-shut)*PK);
     let qx=-side*pc.dx.x*z+lx*1.25+(m==='scared'?(Math.random()-.5)*1.6:0), qy=pc.dy.x*z+ly*1.5+(m==='scared'?(Math.random()-.5)*1.6:0);
     const rt=-side*EYE.tilt, rc=Math.cos(rt), rs=Math.sin(rt);
     let ux=qx*rc+qy*rs, uy=-qx*rs+qy*rc;
@@ -1119,7 +1249,10 @@ function frame(ts){
     if(k>1){ ux/=k; uy/=k; } qx=ux*rc-uy*rs; qy=ux*rs+uy*rc;
     const hr=clamp(pc.hr.x,0,1), st=clamp(pc.st.x,0,1-hr), spin=st*t*1.1;          // star pupils slowly spin
     hl.setAttribute('d',toD(pupilPts(pw,ph,-side*pc.r.x+spin,hr,st).map(([x,y])=>P(cx+qx+x,cy+qy+y))));
+    (side<0?E.skL:E.skR).setAttribute('d',FACE.sparks&&shut<.6&&hr<.5&&st<.5?sparkPath(cx+qx,cy+qy,Math.min(pw,ph),FACE.sparks,P):'M0 0Z');
   }
+  E.lash.setAttribute('d',lashD||'M0 0Z');
+  drawJay(m,t,dt,P);
 
   // ---- aura: halo, voice ring, orbiting sparks
   const spd=G.spd.to(A.spd,dt)+(m==='listening'?micLvl*2.2:0)+(isTalk(m)?lvl*1.4:0);
@@ -1177,20 +1310,22 @@ function frame(ts){
   }
 
   // ---- extras
+  flushTick(ts);
   E.raysW.setAttribute('transform',`rotate(${(t*10)%360})`);
   E.rays.setAttribute('opacity',Math.max(0,G.rays.to(m==='happy'||m==='excited'?.16:0,dt)).toFixed(3));
   const thk=G.think.to(m==='thinking'?1:0,dt);
   E.think.setAttribute('opacity',clamp(thk,0,1).toFixed(2));
   [...E.think.children].forEach((c,i)=>c.setAttribute('transform',`translate(0,${(-Math.abs(Math.sin(t*3-i*.7))*5).toFixed(1)})`));
   E.think.setAttribute('transform',`translate(60,-60) scale(${Math.max(0,thk).toFixed(3)}) translate(-60,60)`);
-  const an=G.anger.to(m==='annoyed'||m==='error'?1:0,dt);
+  const an=G.anger.to(m==='annoyed'||m==='error'||m==='angry'||m==='t_angry'?1:0,dt);
   E.anger.setAttribute('opacity',clamp(an,0,1).toFixed(2));
   E.anger.setAttribute('transform',`translate(62,-62) scale(${(Math.max(0,an)*(1+Math.sin(t*7)*.1)).toFixed(3)})`);
   const qm=G.qm.to(m==='confused'?1:0,dt);
   E.qmark.setAttribute('opacity',clamp(qm,0,1).toFixed(2));
   E.qmark.setAttribute('transform',`translate(80,-80) rotate(${(Math.sin(t*2.4)*12).toFixed(1)}) scale(${Math.max(0,qm).toFixed(3)}) translate(-80,80)`);
   const sw=(t%1.8)/1.8;
-  E.sweat.setAttribute('opacity',m==='running'||m==='pleading'?(sw<.75?1:1-(sw-.75)/.25).toFixed(2):'0');
+  E.sweat.setAttribute('fill',m==='disgust'||m==='t_disgust'?'#9be36b':'#cfe8ff');
+  E.sweat.setAttribute('opacity',m==='running'||m==='pleading'||m==='disgust'||m==='t_disgust'?(sw<.75?1:1-(sw-.75)/.25).toFixed(2):'0');
   E.sweat.setAttribute('transform',`translate(-70,${(-44+eOut(sw)*18).toFixed(1)}) scale(${(.6+Math.min(sw*3,1)*.4).toFixed(2)})`);
   // skin: ears follow his mood (droop, perk, flatten) and twitch now and then; antennas/sprouts wobble; halos float
   const SP2=SKIN_PARTS||{};
@@ -1205,6 +1340,8 @@ function frame(ts){
   // tears
   if(m==='sad' && ts>tearAt){ tearAt=ts+1900+Math.random()*900; tear(Math.random()<.6?-1:1); }
   if(m==='scared') shakeAmp=Math.max(shakeAmp,.5);
+  bangA=approach(bangA,m==='attention'?1:0,dt,9);
+  E.bang.setAttribute('opacity',bangA.toFixed(2)); E.bang.setAttribute('transform',`translate(0,${f1(-hop)})`);
   E.zz.setAttribute('opacity',m==='sleepy'?(.5+Math.sin(t*1.2)*.5).toFixed(2):'0');
   E.zz.setAttribute('transform',`translate(0,${(-((t*6)%14)).toFixed(1)})`);
   for(let i=parts.length-1;i>=0;i--) if(!parts[i](ts,dt)) parts.splice(i,1);
@@ -1284,6 +1421,12 @@ function talkFace(tag){
     case 'surprised':talk.face='t_surprised'; G.jelly.kick(-.3); break;
     case 'sorry':    talk.face='t_sorry'; break;
     case 'serious':  talk.face='t_serious'; talk.awayUntil=0; break;              // serious: looks right at you
+    case 'annoyed':  talk.face='t_annoyed'; break;
+    case 'angry':    talk.face='t_angry'; talk.awayUntil=0; break;
+    case 'shy':      talk.face='t_shy'; { const sd=Math.random()<.5?-1:1; talk.away=[sd*3,4]; talk.awayUntil=n+900; } break;   // glances down
+    case 'love':     talk.face='t_love'; break;
+    case 'cool':     talk.face='t_cool'; break;
+    case 'disgust':  talk.face='t_disgust'; break;
     default:         talk.face='t_explain';
   }
 }
@@ -1455,7 +1598,7 @@ function stopRec(cancel){ const r=rec; if(!r) return; r.stopping=true; if(cancel
 /* ================= caption ================= */
 // Claude tags how it means each sentence ("[proud] Fixed it.") — see VOICE_PROMPT in server.py. The tags drive his face
 // and are never shown or spoken.
-const FACE_TAG=/\[(neutral|happy|proud|excited|laugh|warm|curious|unsure|thinking|surprised|sorry|serious)\]\s*/gi;
+const FACE_TAG=/\[(neutral|happy|proud|excited|laugh|warm|curious|unsure|thinking|surprised|sorry|serious|annoyed|angry|shy|love|cool|disgust)\]\s*/gi;
 const untag=s=>String(s||'').replace(FACE_TAG,'');
 function karaParse(text){ const ws=[], faces=[]; let pend=null, tagged=false;
   for(const tok of plain(String(text||'')).replace(FACE_TAG,m=>' '+m.trim()+' ').split(/\s+/)){
@@ -1538,6 +1681,10 @@ $('#clipB').addEventListener('contextmenu',e=>{ e.preventDefault(); e.stopPropag
 const SCREEN_RE=/\b(my|the|this|on( the)?) screen\b|\bscreenshot\b|\bwhat am i looking at\b|\blook at (this|that|it)\b|\bsee (this|that)\b/i;
 const WHOLE_RE=/\b(whole|entire|full) screen\b|\ball (my )?(screens|monitors)\b/i;   // otherwise just the window you're using
 // live view: he sees your screen only while you've told him to — a fresh picture rides along with each thing you say
+const TOUR_RE=/\b(?:show|do)\b.*\b(?:moods|faces|expressions|emotions|feelings)\b/i;
+const FACE_RE=/\b(?:switch|change|go|use)\b.*\b(doll|soft|almond|void)\b.*\bface\b/i;
+function moodTour(){ ['happy','attention','curious','shy','love','excited','cool','wink','joy','surprised','sad','bored','annoyed','angry','disgust','sleepy','idle']
+  .forEach((m,i)=>setTimeout(()=>{ wake(); poke(m,3300); tick(m); },i*3400)); }
 const LIVE_ON=/^(?:hey\s+void[,\s]+)?(?:please\s+)?(?:(?:start|turn on|open)\s+)?(?:live view|live mode|watch(?:ing)? (?:my |the )?screen|keep an eye on (?:my |the )?screen|look live|see (?:my screen )?live)\b/i;
 const LIVE_OFF=/^(?:hey\s+void[,\s]+)?(?:please\s+)?(?:stop (?:watching|looking)(?: (?:at )?(?:my |the )?screen)?|(?:turn off|stop|close|end) (?:the )?live(?: view| mode)?|live(?: view)? off)\b/i;
 let liveUntil=0, liveT=null;
@@ -1622,6 +1769,9 @@ async function send(text,opts={}){
     info.memory_count=r.items.length; capShow(); setYou(text); say(r.added?"Got it — I'll remember that.":'I already had that one!'); poke('wink',1300); return; }
   if((mm=text.match(MEM_DEL))){ const r=await (await post('/api/memory',{op:'del',match:mm[1].replace(/[.!]+$/,'')})).json();
     info.memory_count=r.items.length; capShow(); setYou(text); say(r.removed?'Okay, forgotten.':"I couldn't find that in my notes — opening them so you can pick."); if(!r.removed) openPanel('memory'); return; }
+  if(TOUR_RE.test(text)){ capShow(); setYou(text); moodTour(); return; }
+  { const fm=text.match(FACE_RE); if(fm){ const n=fm[1].toLowerCase(), F=FACES[n].look; capShow(); setYou(text);
+      setLook({face:n,body:F[0],pupL:F[1],pupR:F[1],whiteL:F[2],whiteR:F[2]}); poke('excited',900); return; } }
   if(LIVE_ON.test(text)){ setLive(true); capShow(); setYou(text); say("Okay, I'm watching. Say “stop watching” when you're done."); poke('looking',1400); sfx('ok'); return; }
   if(LIVE_OFF.test(text)){ const was=liveOn(); setLive(false); capShow(); setYou(text); say(was?'Okay, I stopped looking.':"I wasn't looking."); poke('wink',1000); return; }
   if(MEM_SHOW.test(text)){ capShow(); setYou(text); const n=info.memory_count||0; say(n?`I have ${n} note${n>1?'s':''} — here they are.`:"Nothing yet! Say “remember …” and I'll keep it."); openPanel('memory'); return; }
