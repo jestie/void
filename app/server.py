@@ -28,6 +28,7 @@ import time
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import urllib.request
 from urllib.parse import urlparse
 
 APP_DIR = Path(__file__).resolve().parent
@@ -74,16 +75,28 @@ VOICE_PROMPT = (
     "picture to open with the Read tool. It only looks, it can't click or type. Don't look when the task doesn't need it. "
     "Void has an expressive face. In your final spoken reply only, start each sentence with one tag in square brackets "
     "saying how you mean it, so the face matches your words: [neutral] [happy] [proud] [excited] [laugh] [warm] "
-    "[curious] [unsure] [thinking] [surprised] [sorry] [serious]. Example: \"[proud] Fixed it, all nine tests pass now. "
+    "[curious] [unsure] [thinking] [surprised] [sorry] [serious] [annoyed] [angry] [shy] [love] [cool] [disgust]. "
+    "Your voice follows the tags too, so be honest about the mood. Example: \"[proud] Fixed it, all nine tests pass now. "
     "[curious] Want me to commit it?\" You can switch tags mid-sentence if your feeling changes. Never put these tags in "
     "files, code, commands or tool input — only in the words you say to the user."
 )
 # the face tags Claude puts in its replies (see VOICE_PROMPT) — never spoken, never shown, never saved
-FACE_TAG_RE = re.compile(r"\[(?:neutral|happy|proud|excited|laugh|warm|curious|unsure|thinking|surprised|sorry|serious)\]\s*", re.I)
+FACE_TAG_RE = re.compile(r"\[(?:neutral|happy|proud|excited|laugh|warm|curious|unsure|thinking|surprised|sorry|serious|annoyed|angry|shy|love|cool|disgust)\]\s*", re.I)
 
 
 def untag(t):
     return FACE_TAG_RE.sub("", t or "")
+
+
+LAST_TONE = ["neutral"]
+
+
+def tone_of(t):
+    """The first face tag in a sentence → how to say it (Jay's voice). A sentence without one keeps the last tone."""
+    m = FACE_TAG_RE.search(t or "")
+    if m:
+        LAST_TONE[0] = m.group(0).strip()[1:-1].lower()
+    return LAST_TONE[0]
 
 DEFAULTS = {
     "port": 47777,
@@ -126,7 +139,8 @@ DEFAULTS = {
     "speak_max_chars": 600,
     # voice preset: girl | cute | guy | deep | british | story | robot
     # (engine: Kokoro if installed, else piper — piper voices download on first use)
-    "voice": "girl",
+    "voice": "jay",
+    "kokoro_url": "http://127.0.0.1:8880/v1/audio/speech",   # a local Kokoro server; used first when it answers
     # root mode: Claude may run anything, incl. sudo (you get a password box each time it needs root)
     "root_mode": False,
     "cpu_split": True,       # face (window) and voice/brain (server) on separate CPU cores (4+ cores only)
@@ -1542,6 +1556,15 @@ VOICES = {
     "british":  {"label": "British",     "kokoro": "bm_george",  "piper": "en_GB-alan-medium", "pitch": 1.0},
     "story":    {"label": "Storyteller", "kokoro": "bm_fable",   "piper": "en_GB-alan-medium", "pitch": 1.0},
     "robot":    {"label": "Robot",       "espeak": "en-us+m3",   "pitch": 0.9},
+    # Jay: the voice follows the face tags. tone → (kokoro voice, pitch, final speed); Kokoro speaks at speed/pitch
+    # and playback runs at pitch, so the pitch moves while the talking speed stays where we put it.
+    "jay":      {"label": "Jay (by mood)", "kokoro": "af_bella", "piper": "en_US-amy-medium", "pitch": 1.0, "moods": {
+        "neutral": ("af_bella", 1.0, 1.0), "serious": ("af_bella", 1.0, 1.0), "thinking": ("af_bella", 1.0, 1.0),
+        "curious": ("af_bella", 1.0, 1.0), "unsure": ("af_bella", 1.0, 1.0), "cool": ("af_bella", 0.97, 0.97),
+        "warm": ("af_heart", 1.0, 1.0), "sorry": ("af_heart", 1.0, 0.96), "shy": ("af_heart", 1.04, 0.95),
+        "happy": ("af_bella", 1.12, 1.0), "proud": ("af_bella", 1.12, 1.0), "excited": ("af_bella", 1.12, 1.06),
+        "laugh": ("af_bella", 1.12, 1.04), "surprised": ("af_bella", 1.12, 1.0), "love": ("af_bella", 1.12, 0.97),
+        "annoyed": ("af_sarah", 0.95, 0.92), "angry": ("af_sarah", 0.92, 1.12), "disgust": ("af_sarah", 0.95, 0.94)}},
 }
 
 # ---- Kokoro (kokoro-onnx): a much more natural voice than piper, still fully local. Small int8 model (~120 MB total).
@@ -1556,8 +1579,27 @@ def kokoro_installed():
     return importlib.util.find_spec("kokoro_onnx") is not None
 
 
+_KHTTP = {"ok": None, "at": 0.0}
+
+
+def kokoro_http_ok():
+    """A Kokoro-FastAPI server already running on this machine (e.g. a Kokoro-FastAPI server), checked at most every 30 s."""
+    url = CFG.get("kokoro_url")
+    if not url:
+        return False
+    now = time.monotonic()
+    if _KHTTP["ok"] is None or now - _KHTTP["at"] > 30:
+        try:
+            urllib.request.urlopen(url.rsplit("/audio/", 1)[0] + "/audio/voices", timeout=1.5).close()
+            ok = True
+        except Exception:  # noqa: BLE001
+            ok = False
+        _KHTTP.update(ok=ok, at=now)
+    return _KHTTP["ok"]
+
+
 def kokoro_ready():
-    return all((KOKORO_DIR / f).exists() for f in KOKORO_FILES) and kokoro_installed()
+    return kokoro_http_ok() or (all((KOKORO_DIR / f).exists() for f in KOKORO_FILES) and kokoro_installed())
 
 
 def fetch_kokoro():
@@ -1580,6 +1622,11 @@ def fetch_kokoro():
 
 def kokoro_synth(text, voice, speed):
     """→ wav bytes (16-bit mono, 24 kHz)"""
+    if kokoro_http_ok():
+        req = urllib.request.Request(CFG["kokoro_url"], headers={"Content-Type": "application/json"}, data=json.dumps(
+            {"model": "kokoro", "input": text, "voice": voice, "speed": max(0.5, min(2.0, speed)), "response_format": "wav"}).encode())
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.read()
     from kokoro_onnx import Kokoro
     with _TTS_LOCK:
         k = _KOKORO.get("k")
@@ -1830,7 +1877,7 @@ class Speaker:
     It always knows when each sentence will start playing and tells the page, which times the captions and his face
     from that. If it ever does run dry, it counts it (see `void stress`) and shifts its clock so sync stays right."""
     cv = threading.Condition()
-    todo = []            # (gen, id, text) waiting to be made
+    todo = []            # (gen, id, text, tone) waiting to be made
     ready = []           # (gen, id, text, pcm, prate, words, level) waiting to be played
     making = False
     gen = 0
@@ -1863,9 +1910,9 @@ class Speaker:
                 t.start()
 
     @classmethod
-    def say(cls, text, sid):
+    def say(cls, text, sid, tone="neutral"):
         with cls.cv:
-            cls.todo.append((cls.gen, sid, text))
+            cls.todo.append((cls.gen, sid, text, tone))
             if all(isinstance(x[1], int) for x in cls.todo):     # sentences can arrive out of order: play them in order
                 cls.todo.sort(key=lambda x: (x[0], x[1]))
             cls.cv.notify_all()
@@ -1899,13 +1946,13 @@ class Speaker:
             with cls.cv:
                 while not cls.todo or len(cls.ready) >= 3:
                     cls.cv.wait()
-                g, sid, text = cls.todo.pop(0)
+                g, sid, text, tone = cls.todo.pop(0)
                 cls.making = True
             try:
                 if g != cls.gen:
                     continue
                 t = time.monotonic()
-                wav, rate = synth(text)
+                wav, rate = synth(text, tone)
                 wav, times, level = tidy_full(wav, text)
                 with wave.open(io.BytesIO(wav)) as w:
                     sr, pcm = w.getframerate(), w.readframes(w.getnframes())
@@ -2096,12 +2143,15 @@ def stress_voice(silent=False):
     return 0 if ok else 2
 
 
-def synth(text: str):
+def synth(text: str, tone: str = "neutral"):
     """→ (wav bytes, playback rate)"""
     eng = tts_engine()
     if not eng:
         raise RuntimeError("no TTS engine (install espeak-ng or piper)")
     vp = voice_preset()
+    if eng == "kokoro" and vp.get("moods") and not CFG.get("kokoro_voice"):
+        v, p, f = vp["moods"].get(tone) or vp["moods"]["neutral"]
+        return kokoro_synth(text, v, f / p), p
     if eng == "kokoro" and vp.get("kokoro"):
         # pitch: play it back a touch faster/slower, and have Kokoro speak slower/faster by the same factor
         kp = float(vp.get("kpitch", 1.0))
@@ -2789,12 +2839,13 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/ask":
                 return self.ask()
             if p == "/api/tts":
-                text = speakable(json.loads(self._body() or b"{}").get("text", ""))
+                raw = json.loads(self._body() or b"{}").get("text", "")
+                text, tone = speakable(raw), tone_of(raw)
                 if not text or not tts_engine():
                     self.send_response(204)
                     self.end_headers()
                     return None
-                audio, rate = synth(text)
+                audio, rate = synth(text, tone)
                 audio, words = tidy_and_time(audio, text)
                 pause = 0.3 if re.search(r"[.!?]['\")]*$", text) else 0.14 if re.search(r"[,;:—–]$", text) else 0.06
                 self.send_response(200)
@@ -2810,11 +2861,11 @@ class Handler(BaseHTTPRequestHandler):
                 return None
             if p == "/api/say":                       # speak this (played by the server, see Speaker)
                 b = json.loads(self._body() or b"{}")
-                text = speakable(b.get("text", ""))
+                text, tone = speakable(b.get("text", "")), tone_of(b.get("text", ""))
                 if not text or not tts_engine():
                     BUS.pub(t="spk_skip", id=b.get("id"))
                 else:
-                    Speaker.say(text, b.get("id"))
+                    Speaker.say(text, b.get("id"), tone)
                 return self._json({"ok": True})
             if p == "/api/say/stop":
                 Speaker.stop()
