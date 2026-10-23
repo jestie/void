@@ -1121,6 +1121,7 @@ function flash(col){ if(document.body.classList.contains('bar')) return notchPul
 function onMood(m){
   document.body.classList.forEach(c=>{ if(c.startsWith('m-')) document.body.classList.remove(c); }); document.body.classList.add('m-'+m);
   flush(m);
+  if(window.emoStart) emoStart(m);
   if(!opened) return;
   if(m==='t_angry') shakeAmp=1.6;
   if(m==='t_love') hearts(3);
@@ -1176,7 +1177,7 @@ function frame(ts){
   const rawDt=(ts-(lastTs||ts))/1000, dt=clamp(rawDt,0,.05); lastTs=ts; const t=ts/1000;
   if(!lowFx && rawDt>0 && rawDt<.25 && document.visibilityState==='visible'){ perfAcc+=rawDt; perfN++;
     if(perfN>=120){ if(perfAcc/perfN>.032){ lowFx=true; ['orbBack','orbFront','vring','workW'].forEach(k=>E[k].removeAttribute('filter')); console.log('[void] slow frames — glow off'); } perfAcc=0; perfN=0; } }
-  const m=mood(ts), T=MOODS[m], A=AURA[m];
+  const m=mood(ts), T=MOODS[m], A=AURA[m]||AURA.idle;
   if(m!==prevMood){ onMood(m); prevMood=m; }
   // idle routines (not while he's the cursor, or busy with anything)
   const hovering=document.body.classList.contains('hover');
@@ -1185,6 +1186,7 @@ function frame(ts){
     FID={name:n,t0:ts,dur:FIDGETS[n].dur}; lastFid=n; FIDGETS[n].start&&FIDGETS[n].start(FID); }
   let fx={};
   if(FID){ const p=(ts-FID.t0)/FID.dur; if(p>=1){ FID=null; nextFidAt=ts+4500+Math.random()*7000; } else fx=FIDGETS[FID.name].f(p,t,FID)||{}; }
+  if(window.emoFx) fx=emoFx(m,ts,t,fx);              // smiley faces and gestures (emotes.js)
   { const sp=(ts-spinAt)/SPIN_MS, dz=(ts-spinAt-SPIN_MS)/DIZZY_MS; spinYaw=0; dizzyK=0;
     if(sp>=0&&sp<1){ FID=null; const v=(1-Math.cos(2*Math.PI*sp))/2;            // speed: 0 → full → 0, ends facing you
       spinYaw=SPIN_TURNS*2*Math.PI*(sp-Math.sin(2*Math.PI*sp)/(2*Math.PI));
@@ -1220,7 +1222,7 @@ function frame(ts){
   const rot=G.tilt.x+Math.sin(t*.5)*.5+G.gx.v*.012+(fx.rot||0)+(m==='disgust'||m==='t_disgust'?Math.sin(t*2.4)*4:0);
   const hop=m==='attention'?Math.abs(Math.sin(t*7))*11*((ts-hopAt)<2400?1:.35):0;
   const dxp=G.dx.to(0,dt);
-  const bodyTr=`translate(${dxp.toFixed(2)},${(76*(1-sy*pump)-hop).toFixed(2)}) rotate(${rot.toFixed(2)})`;
+  const bodyTr=`translate(${(dxp+(fx.bx||0)).toFixed(2)},${(76*(1-sy*pump)-hop+(fx.by||0)).toFixed(2)}) rotate(${rot.toFixed(2)})`;
   E.body.setAttribute('transform',`${bodyTr} scale(${(sx*pump).toFixed(4)},${(sy*pump).toFixed(4)})`);
   E.shadow.setAttribute('transform',`scale(${(sx*(1-hop/30)).toFixed(3)},1)`);
 
@@ -1280,8 +1282,9 @@ function frame(ts){
     const ax=Math.max(1,EYE.rx*z-pw-1.5), ay=Math.max(1,EYE.ry*z*sq-ph-1.5), k=Math.hypot(ux/ax,uy/ay);
     if(k>1){ ux/=k; uy/=k; } qx=ux*rc-uy*rs; qy=ux*rs+uy*rc;
     const hr=clamp(pc.hr.x,0,1), st=clamp(pc.st.x,0,1-hr), spin=st*t*1.1;          // star pupils slowly spin
-    if(dizzyK>.02){                     // dizzy: spiral eyes, turning opposite ways
-      const rr=EYE.rx*z*.8*Math.min(1,dizzyK*1.6), rot=-t*7*side, N=56, turns=2.6, bw=1.7*z, out=[], inn=[];
+    const dk=Math.max(dizzyK,window.emoSpiral?1:0);
+    if(dk>.02){                     // dizzy: spiral eyes, turning opposite ways
+      const rr=EYE.rx*z*.8*Math.min(1,dk*1.6), rot=-t*7*side, N=56, turns=2.6, bw=1.7*z, out=[], inn=[];
       for(let i=0;i<=N;i++){ const q=i/N, a=rot+q*turns*2*Math.PI, r=q*rr, ca=Math.cos(a), sa=Math.sin(a);
         out.push(P(cx+ca*(r+bw*q),cy+sa*(r+bw*q))); inn.push(P(cx+ca*Math.max(0,r-bw*q),cy+sa*Math.max(0,r-bw*q))); }
       hl.setAttribute('d',toD(out.concat(inn.reverse()))); (side<0?E.skL:E.skR).setAttribute('d','M0 0Z');
@@ -1291,6 +1294,7 @@ function frame(ts){
   }
   E.lash.setAttribute('d',lashD||'M0 0Z');
   drawJay(m,t,dt,P);
+  if(window.emoDraw) emoDraw(m,t,dt,P);
 
   // ---- aura: halo, voice ring, orbiting sparks
   const spd=G.spd.to(A.spd,dt)+(m==='listening'?micLvl*2.2:0)+(isTalk(m)?lvl*1.4:0);
@@ -1726,9 +1730,9 @@ const FACE_RE=/\b(?:switch|change|go|use)\b.*\b(doll|soft|almond|void)\b.*\bface
 // a little show for the camera: her best bits, then a hello (record it with Snipping Tool / any screen recorder)
 function trickShow(){ const at=(ms,f)=>setTimeout(()=>{ wake(); f(); },ms);
   at(0,()=>say('Hi! Want to see some tricks?'));
-  at(3800,()=>poke('excited',2600)); at(6600,()=>poke('love',3000)); at(9800,()=>poke('cool',3200));
-  at(13300,spin); at(19300,()=>poke('wink',1400));
-  at(21000,()=>{ poke('happy',2200); setTimeout(()=>say('Hello JanseVans!!!!'),900); }); }
+  at(3800,()=>poke('excited',2600)); at(6600,()=>poke('love',3000)); at(9800,()=>emote('disguise',3200)); at(13200,()=>poke('cool',3000));
+  at(16400,spin); at(22400,()=>emote('mind_blown',2600)); at(25200,()=>emote('rofl',2600));
+  at(28000,()=>{ poke('happy',1600); setTimeout(()=>{ emote('party',5200); say('Hello JanseVans!!!!'); },1500); }); }
 function moodTour(){ ['happy','attention','curious','shy','love','excited','cool','wink','joy','surprised','sad','bored','annoyed','angry','disgust','sleepy','idle']
   .forEach((m,i)=>setTimeout(()=>{ wake(); poke(m,3300); tick(m); },i*3400)); }
 const LIVE_ON=/^(?:hey\s+void[,\s]+)?(?:please\s+)?(?:(?:start|turn on|open)\s+)?(?:live view|live mode|watch(?:ing)? (?:my |the )?screen|keep an eye on (?:my |the )?screen|look live|see (?:my screen )?live)\b/i;
@@ -1817,6 +1821,7 @@ async function send(text,opts={}){
     info.memory_count=r.items.length; capShow(); setYou(text); say(r.removed?'Okay, forgotten.':"I couldn't find that in my notes — opening them so you can pick."); if(!r.removed) openPanel('memory'); return; }
   if(TOUR_RE.test(text)){ capShow(); setYou(text); moodTour(); return; }
   if(TRICKS_RE.test(text)){ capShow(); setYou(text); trickShow(); return; }
+  if(window.emoCommand&&emoCommand(text)){ capShow(); setYou(text); return; }
   if(SPIN_RE.test(text)){ capShow(); setYou(text); spin(); return; }
   { const fm=text.match(FACE_RE); if(fm){ const n=fm[1].toLowerCase(), F=FACES[n].look; capShow(); setYou(text);
       setLook({face:n,body:F[0],pupL:F[1],pupR:F[1],whiteL:F[2],whiteR:F[2]}); poke('excited',900); return; } }
@@ -2703,5 +2708,6 @@ applyLook(LOOK_DEFAULT);
 events();
 setInterval(()=>{ if(!busy) refresh(); },15000);
 </script>
+<script src="emotes.js"></script>
 </body>
 </html>
