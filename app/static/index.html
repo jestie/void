@@ -1732,7 +1732,7 @@ function trickShow(){ const at=(ms,f)=>setTimeout(()=>{ wake(); f(); },ms);
   at(0,()=>say('Hi! Want to see some tricks?'));
   at(3800,()=>poke('excited',2600)); at(6600,()=>poke('love',3000)); at(9800,()=>emote('disguise',3200)); at(13200,()=>poke('cool',3000));
   at(16400,spin); at(22400,()=>emote('mind_blown',2600)); at(25200,()=>emote('rofl',2600));
-  at(28000,()=>{ poke('happy',1600); setTimeout(()=>{ emote('party',5200); say('Hello JanseVans!!!!'); },1500); }); }
+  at(28000,()=>{ poke('happy',1600); setTimeout(()=>{ emote('party',5200); say(info.trick_hello||'Hello everyone!'); },1500); }); }
 function moodTour(){ ['happy','attention','curious','shy','love','excited','cool','wink','joy','surprised','sad','bored','annoyed','angry','disgust','sleepy','idle']
   .forEach((m,i)=>setTimeout(()=>{ wake(); poke(m,3300); tick(m); },i*3400)); }
 const LIVE_ON=/^(?:hey\s+void[,\s]+)?(?:please\s+)?(?:(?:start|turn on|open)\s+)?(?:live view|live mode|watch(?:ing)? (?:my |the )?screen|keep an eye on (?:my |the )?screen|look live|see (?:my screen )?live)\b/i;

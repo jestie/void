@@ -62,6 +62,28 @@ moves with her voice. She keeps Void's glowing, squishy orb, and adds her own fe
 - 🗣️ **Her voice follows her mood.** Calm, warm, cute, annoyed and angry voices, picked sentence by sentence.
 - 👗 **Four faces.** Doll (default), soft, almond, or Void's own: "switch to the almond face".
 
+### Install Jay
+
+The usual Void downloads below (`VoidSetup.exe`, the one-line Linux install) give you plain Void. To get Jay, install
+from this repo:
+
+1. Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and run `claude` once to sign in.
+2. If you were given access to this private repo, sign in to GitHub on your computer first: `gh auth login`.
+3. Get her and install:
+
+   ```bash
+   git clone https://github.com/jestie/void.git
+   cd void
+   ./install.sh        # Linux / WSL
+   ```
+
+   On Windows, run `powershell -ExecutionPolicy Bypass -File install.ps1` in the `void` folder instead.
+
+Everything she needs comes with her: her own Kokoro voice (about 120 MB, downloaded by the installer), speech
+recognition on your computer, and all the faces and tricks. Nothing else to set up.
+
+<sub>To change what she says at the end of "show me your tricks", set `"trick_hello"` in `~/.config/void/config.json`.</sub>
+
 ## Install
 
 > **You need [Claude Code](https://docs.anthropic.com/en/docs/claude-code) first.** Install it, then run `claude` once in a

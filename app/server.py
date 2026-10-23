@@ -142,7 +142,10 @@ DEFAULTS = {
     # voice preset: girl | cute | guy | deep | british | story | robot
     # (engine: Kokoro if installed, else piper — piper voices download on first use)
     "voice": "jay",
-    "kokoro_url": "http://127.0.0.1:8880/v1/audio/speech",   # a local Kokoro server; used first when it answers
+    # a Kokoro-FastAPI server of your own (e.g. "http://127.0.0.1:8880/v1/audio/speech"): used first when it answers.
+    # Empty = his built-in Kokoro, which the installer downloads.
+    "kokoro_url": "",
+    "trick_hello": "Hello everyone!",   # what she says at the end of "show me your tricks"
     # root mode: Claude may run anything, incl. sudo (you get a password box each time it needs root)
     "root_mode": False,
     "cpu_split": True,       # face (window) and voice/brain (server) on separate CPU cores (4+ cores only)
@@ -1595,7 +1598,7 @@ _KHTTP = {"ok": None, "at": 0.0}
 
 
 def kokoro_http_ok():
-    """A Kokoro-FastAPI server already running on this machine (e.g. a Kokoro-FastAPI server), checked at most every 30 s."""
+    """The Kokoro-FastAPI server set in kokoro_url, if any: checked at most every 30 s."""
     url = CFG.get("kokoro_url")
     if not url:
         return False
@@ -2755,7 +2758,7 @@ def diagnostics():
 
 def state_info():
     return {
-        "version": VERSION, "update": Updates.status(), "update_check": bool(CFG.get("update_check", True)),
+        "version": VERSION, "trick_hello": str(CFG.get("trick_hello") or "Hello everyone!")[:120], "update": Updates.status(), "update_check": bool(CFG.get("update_check", True)),
         "platform": "windows" if WIN else "linux", "ptt_hotkey": CFG.get("ptt_hotkey", "") or "",
         "presence": "bar" if CFG.get("presence") == "bar" else "orb",
         "bar_edge": CFG.get("bar_edge") if CFG.get("bar_edge") in ("top", "bottom", "left", "right") else "top",
