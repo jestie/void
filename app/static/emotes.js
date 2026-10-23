@@ -311,6 +311,7 @@ window.emoDraw=(m,t,dt,P)=>{
 
 /* ---------------- by voice */
 const NAMES={}; for(const n in EM) NAMES[n.replace(/_/g,' ')]=n; Object.assign(NAMES,ALIAS);
+const BARE=new Set(['shh','nod','shake your head','salute','hug','wink','yawn','eye roll','eyeroll','sigh','peekaboo']);   // these work on their own: "Jay, nod"
 const TOUR=/\b(?:show|do)\b.*\b(?:smileys?|smilies|emojis?|emoticons|emotes)\b/i;
 let tourT=[];
 function tour(){ tourT.forEach(clearTimeout); tourT=Object.keys(EM).map((n,i)=>setTimeout(()=>{ emote(n,3200); tick(EM[n].e+'  '+n.replace(/_/g,' ')); },i*3400)); }
@@ -319,6 +320,8 @@ window.emoCommand=text=>{
   if(TOUR.test(text)){ tour(); return true; }
   const s=text.toLowerCase().replace(/[.!?,]+/g,' ').replace(/^\s*(?:hey\s+)?(?:jay|void)\s+/,'').replace(/\s+/g,' ').trim();
   const mm=s.match(/^(?:(?:can|could|will|would) you\s+)?(?:please\s+)?(?:do|make|pull|give (?:me|us)|show (?:me|us))\s+(?:the\s+|a\s+|an\s+|your\s+|some\s+)?(.+?)(?:\s+(?:face|smiley|emoji|look))?(?:\s+for (?:me|us))?(?:\s+please)?$/);
+  const bare=s.replace(/^(?:(?:can|could|will|would) you\s+)?(?:please\s+)?/,'').replace(/\s+(?:please|for me|for us)$/,'');
+  if(!mm&&BARE.has(bare)){ const n=NAMES[bare]; emote(n); tick(EM[n].e+'  '+n.replace(/_/g,' ')); return true; }
   if(!mm) return false;
   const want=mm[1].trim(), keys=Object.keys(EM);
   const n=/^(?:face|funny face|silly face|random face|smiley|emoji|any face)$/.test(want)?keys[Math.random()*keys.length|0]:NAMES[want]; if(!n) return false;

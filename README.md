@@ -9,6 +9,7 @@ Say “hey Void” and he does the work.</p>
   <a href="#install"><b>Install</b></a> &nbsp;·&nbsp;
   <a href="#your-first-two-minutes"><b>First steps</b></a> &nbsp;·&nbsp;
   <a href="#things-to-try"><b>Things to try</b></a> &nbsp;·&nbsp;
+  <a href="#meet-jay"><b>Jay's faces</b></a> &nbsp;·&nbsp;
   <a href="#meet-him"><b>Features</b></a> &nbsp;·&nbsp;
   <a href="docs/GUIDE.md"><b>Full guide</b></a> &nbsp;·&nbsp;
   <a href="#need-help"><b>Help</b></a>
@@ -41,6 +42,25 @@ Void is a little orb that floats on your desktop. Tell him what you want, and he
 </td>
 </tr>
 </table>
+
+## Meet Jay
+
+This fork adds **Jay**, a second personality for Void: a blue doll face with lashes, blush and a little mouth that
+moves with her voice. She keeps Void's glowing, squishy orb, and adds her own feelings, voices and tricks.
+
+<p align="center"><img src="docs/jay/smileys.png" width="820" alt="Jay doing 96 smiley faces: grins, laughing, tears of joy, angel, heart eyes, nerd glasses, disguise, party hat, angry, mind blown, cold, hug, thinking, peekaboo, salute, melting, Pinocchio, X eyes, spiral eyes and more"></p>
+<p align="center"><sub>All 96 smileys, done her way: her own eyes and colours, a few props, and two little hands for the gestures.</sub></p>
+
+| 😀 Faces | 🙌 Gestures | 🎪 Tricks |
+|---|---|---|
+| "Jay, do the nerd face" | "Give me a hug" | "Jay, spin" (round and round, then dizzy) |
+| "Do the mind blown face" | "Do a salute" | "Show me your tricks" (a 35-second show) |
+| "Do the melting face" | "Shh" / "Do the peekaboo face" | "Show me the smileys" (all 96) |
+| "Pull a face" (a random one) | "Nod" / "Shake your head" | "Show me your moods" |
+
+- 🎨 **Feelings show in her colour.** Shy goes pink, angry goes red, cool goes icy blue, then she fades back to blue.
+- 🗣️ **Her voice follows her mood.** Calm, warm, cute, annoyed and angry voices, picked sentence by sentence.
+- 👗 **Four faces.** Doll (default), soft, almond, or Void's own: "switch to the almond face".
 
 ## Install
 
