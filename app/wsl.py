@@ -7,7 +7,6 @@ that is always the Windows *default* microphone. So:
   * on top: WSLg drops the "keep above" hint. A small PowerShell loop pins his window (msrdc's "Void (<distro>)")
     topmost from the Windows side, and re-pins it if it's re-created.
 """
-import base64
 import os
 import shutil
 import subprocess
@@ -23,17 +22,43 @@ def is_wsl():
         return False
 
 
-def _cmd(script):
-    """powershell.exe argv for a multi-line script (encoded: no quoting trouble across the WSL boundary).
-    No -ExecutionPolicy Bypass: the policy only governs script files, and SIEMs flag Bypass as an attacker habit."""
-    return [PS, "-NoProfile", "-NonInteractive",
-            "-EncodedCommand", base64.b64encode(script.encode("utf-16-le")).decode()]
+_DIR = None
 
 
-def _ps(script, timeout=20):
+def _dir():
+    """Windows folder for our helper scripts (%LOCALAPPDATA%\\Void\\ps) as (windows path, wsl path)."""
+    global _DIR
+    if _DIR is None:
+        r = subprocess.run(["cmd.exe", "/d", "/c", "echo %LOCALAPPDATA%"], capture_output=True, text=True,
+                           timeout=10, cwd="/mnt/c")
+        win = r.stdout.strip() + "\\Void\\ps"
+        wsl = subprocess.run(["wslpath", "-u", win], capture_output=True, text=True, timeout=10).stdout.strip()
+        os.makedirs(wsl, exist_ok=True)
+        _DIR = (win, wsl)
+    return _DIR
+
+
+def _cmd(script, name):
+    """powershell.exe argv that runs the script from a local .ps1 file (no quoting trouble across the WSL boundary).
+    Not -EncodedCommand and not -ExecutionPolicy Bypass: SIEMs flag both as attacker habits (Wazuh 118041/118045).
+    A local unsigned script is allowed under the default RemoteSigned policy. Rewritten only when it changes."""
+    win, wsl = _dir()
+    path = os.path.join(wsl, name + ".ps1")
+    body = script.replace("\r", "").replace("\n", "\r\n")
+    try:
+        same = open(path, encoding="utf-8-sig", newline="").read() == body
+    except OSError:
+        same = False
+    if not same:
+        with open(path, "w", encoding="utf-8-sig", newline="") as fh:   # BOM: PS 5.1 reads BOM-less files as ANSI
+            fh.write(body)
+    return [PS, "-NoProfile", "-NonInteractive", "-File", f"{win}\\{name}.ps1"]
+
+
+def _ps(script, name, timeout=20):
     """Run a PowerShell snippet on the Windows side → (ok, output)."""
     try:
-        r = subprocess.run(_cmd(script), capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(_cmd(script, name), capture_output=True, text=True, timeout=timeout)
         return r.returncode == 0, (r.stdout or "").replace("\r", "").strip()
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, str(e)
@@ -78,7 +103,7 @@ public static class VoidAudio {
 
 
 def list_mics():
-    ok, out = _ps(_LIST)
+    ok, out = _ps(_LIST, "mics")
     if not ok:
         return []
     mics = []
@@ -93,7 +118,7 @@ def set_mic(dev):
     """dev = "win:<endpoint id>" from list_mics → make it the Windows default input. True if Windows took it."""
     if not str(dev or "").startswith("win:"):
         return False
-    ok, out = _ps(_SET % _q(dev[4:]))
+    ok, out = _ps(_SET % _q(dev[4:]), "setmic")
     return ok and out.strip() == "0"
 
 
@@ -137,7 +162,7 @@ class OnTop:
             alive = cls._proc and cls._proc.poll() is None
             if on and not alive:
                 script = _PIN % _q(cls.title())
-                cls._proc = subprocess.Popen(_cmd(script), stdin=subprocess.PIPE,
+                cls._proc = subprocess.Popen(_cmd(script, "pin"), stdin=subprocess.PIPE,
                                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif not on and alive:
                 try:
