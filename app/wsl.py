@@ -24,8 +24,9 @@ def is_wsl():
 
 
 def _cmd(script):
-    """powershell.exe argv for a multi-line script (encoded: no quoting trouble across the WSL boundary)."""
-    return [PS, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+    """powershell.exe argv for a multi-line script (encoded: no quoting trouble across the WSL boundary).
+    No -ExecutionPolicy Bypass: the policy only governs script files, and SIEMs flag Bypass as an attacker habit."""
+    return [PS, "-NoProfile", "-NonInteractive",
             "-EncodedCommand", base64.b64encode(script.encode("utf-16-le")).decode()]
 
 

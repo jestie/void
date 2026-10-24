@@ -18,9 +18,9 @@ DETACHED = 0x00000008 | 0x00000200 | NO_WINDOW    # DETACHED_PROCESS | CREATE_NE
 
 
 def ps(script, timeout=15):
-    """Run a PowerShell snippet quietly → (ok, output)."""
+    """Run a PowerShell snippet quietly → (ok, output). No -ExecutionPolicy Bypass: inline commands don't need it."""
     try:
-        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+        r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
                             script], capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW)
         return r.returncode == 0, (r.stdout or "").strip()
     except (OSError, subprocess.TimeoutExpired) as e:
